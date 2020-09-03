@@ -1,5 +1,7 @@
 const express = require('express');
 const router = express.Router();
+const request = require('request')
+const config = require('config')
 const auth = require('../../middleware/auth');
 const { check, validationResult } = require('express-validator')
 
@@ -82,11 +84,11 @@ router.post('/', [ auth, [
 
   // Build social object
   profileFields.social = {};
-  if(youtube) profileFields.youtube = youtube;
-  if(twitter) profileFields.twitter = twitter;
-  if(facebook) profileFields.facebook = facebook;
-  if(linkedin) profileFields.linkedin = linkedin;
-  if(instagram) profileFields.instagram = instagram;
+  if(youtube) profileFields.social.youtube = youtube;
+  if(twitter) profileFields.social.twitter = twitter;
+  if(facebook) profileFields.social.facebook = facebook;
+  if(linkedin) profileFields.social.linkedin = linkedin;
+  if(instagram) profileFields.social.instagram = instagram;
 
   try {
     // user field is the object id that comes from the token!
@@ -115,6 +117,215 @@ router.post('/', [ auth, [
     res.status(500).send('Server error');
   };
 });
+
+
+// @route  GET api/profile
+// @desc   Get all profiles
+// @access public
+router.get('/', async (req, res) => {
+  try {
+    // use populate to get users names and avatars, which are part of the user model. Populate from the user collection.
+    const profiles = await Profile.find().populate('user', ['name', 'avatar']);
+    res.json(profiles)
+  } catch(err) {
+    console.error(err.message)
+    res.status(500).send('Server Error')
+  }
+});
+
+// @route  GET api/profile/user/:user_id
+// @desc   Get profile by user ID
+// @access public
+// Put : because its a placeholder
+router.get('/user/:user_id', async (req, res) => {
+  try {
+    // use populate to get users names and avatars, which are part of the user model. Populate from the user collection.
+    const profile = await Profile.findOne({ user: req.params.user_id }).populate('user', ['name', 'avatar']);
+
+    if(!profile) {
+      return res.status(400).json({ msg: 'Profile not found'})
+    }
+    res.json(profile)
+    
+  } catch(err) {
+    console.error(err.message)
+    if(err.kind == 'ObjectId') {
+      return res.status(400).json({ msg: 'Profile not found'})
+    }
+    res.status(500).send('Server Error')
+  }
+});
+
+// @route  DELETE api/profile
+// @desc   Delete profile, user and posts
+// @access private
+// add auth middleware since its private, we have access to the token
+
+router.delete('/', auth, async (req, res) => {
+  try {
+    // @todo - remove users posts
+    // use populate to get users names and avatars, which are part of the user model. Populate from the user collection.
+    // Remove profile
+    await Profile.findOneAndRemove({ user: req.user.id })
+    // Remove user
+    await User.findOneAndRemove({ _id: req.user.id })
+
+    res.json({ msg: 'User has been removed' })
+  } catch(err) {
+    console.error(err.message)
+    res.status(500).send('Server Error')
+  }
+});
+
+
+// @route  PUT api/profile/experience
+// @desc   Add profile experience
+// @access private
+
+// put used to update data, could consider it a post, aka adding a resource, but put because we are updating part of a profile
+router.put('/experience', [auth, [
+  check('title', 'Title is required').not().isEmpty(),
+  check('company', 'Company is required').not().isEmpty(),
+  check('from', 'From date is required').not().isEmpty()
+]], async (req, res) => {
+  const errors = validationResult(req);
+  if(!errors.isEmpty()) {
+    // Will get us that much needed sweet array of errors
+    return res.status(400).json({ errors: errors.array() })
+  }
+
+  const { title, company, location, from, to, current, description } = req.body;
+
+  // const newExperience = { 
+  //   title: title,
+  //   company: company,
+  //   location: location,
+  //   from: from,
+  //   to: to,
+  //   current: current,
+  //   description: description 
+  // }
+  // create object with data user submits
+  const newExperience = { title, company, location, from, to, current, description }
+  try {
+    const profile = await Profile.findOne({ user: req.user.id })
+    profile.experience.unshift(newExperience)
+    await profile.save()
+    res.json(profile)
+  } catch (err) {
+    console.error(err.message)
+    res.status(500).send('Server error')
+  }
+})
+
+
+// @route  DELETE api/profile/experience/:exp_id
+// could be a put because we are updating, but delete request because something is being removed.
+// @desc   delete experience from profile
+// @access private
+router.delete('/experience/:exp_id', auth, async (req, res) => {
+  try {
+    // get profile by user id of logged in user
+    const profile = await Profile.findOne({ user: req.user.id })
+    // get correct experience to remove
+    // get index of one we want to  remove
+    const removeIndex = profile.experience.map(item => item.id).indexOf(req.params.exp_id);
+    // want to take something out of the array and we want to take out 1 and we have the index
+    profile.experience.splice(removeIndex, 1)
+    // save it and send back response
+    await profile.save()
+    res.json(profile)
+  } catch(err) {
+    console.error(err.message)
+    res.status(500).send('Server Error')
+  }
+})
+
+
+
+
+
+
+// @route  PUT api/profile/education
+// @desc   Add profile education
+// @access private
+
+// put used to update data, could consider it a post, aka adding a resource, but put because we are updating part of a profile
+router.put('/education', [auth, [
+  check('school', 'School is required').not().isEmpty(),
+  check('degree', 'Degree is required').not().isEmpty(),
+  check('fieldofstudy', 'Field of study is required').not().isEmpty(),
+  check('from', 'From date is required').not().isEmpty()
+]], async (req, res) => {
+  const errors = validationResult(req);
+  if(!errors.isEmpty()) {
+    // Will get us that much needed sweet array of errors
+    return res.status(400).json({ errors: errors.array() })
+  }
+// pull out of req.body, destructure
+  const { school, degree, fieldofstudy, from, to, current, description } = req.body;
+// add to newExperience object
+  const newEducation = { school, degree, fieldofstudy, from, to, current, description }
+  try {
+    const profile = await Profile.findOne({ user: req.user.id })
+    profile.education.unshift(newEducation)
+    await profile.save()
+    res.json(profile)
+  } catch (err) {
+    console.error(err.message)
+    res.status(500).send('Server error')
+  }
+})
+
+
+// @route  DELETE api/profile/education/:edu_id
+// could be a put because we are updating, but delete request because something is being removed.
+// @desc   delete education from profile
+// @access private
+router.delete('/education/:edu_id', auth, async (req, res) => {
+  try {
+    // get profile by user id of logged in user
+    const profile = await Profile.findOne({ user: req.user.id })
+    // get correct education to remove
+    // get index of one we want to  remove
+    const removeIndex = profile.education.map(item => item.id).indexOf(req.params.edu_id);
+    // want to take something out of the array and we want to take out 1 and we have the index
+    profile.education.splice(removeIndex, 1)
+    // save it and send back response
+    await profile.save()
+    res.json(profile)
+  } catch(err) {
+    console.error(err.message)
+    res.status(500).send('Server Error')
+  }
+})
+
+
+// @route GET api/profile/github/:username
+// @desc  get user repos from Github
+// @access public
+router.get('/github/:username', (req, res) => {
+  try {
+    const options = {
+      uri: `https://api.github.com/users/${req.params.username}/repos?per_page=5&sort=created:asc&client_id=${config.get('githubClientID')}&client_secret=${config.get('githubSecret')}`,
+      method: 'GET',
+      headers: { 'user-agent': 'node.js' }
+    };
+    
+    request(options, (error, response, body) => {
+      if(error) console.error(error);
+      if(response.statusCode !== 200) {
+        res.status(404).json({ msg: 'No Github profile found'})
+      }
+      res.json(JSON.parse(body))
+
+      
+    })
+  } catch (err) {
+    console.error(err.message)
+    res.status(500).send('Server Error')
+  }
+})
 
 
 
