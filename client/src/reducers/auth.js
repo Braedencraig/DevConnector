@@ -5,7 +5,8 @@ import {
   AUTH_ERROR,
   LOGIN_SUCCESS,
   LOGIN_FAIL,
-  LOGOUT
+  LOGOUT,
+  ACCOUNT_DELETED
 } from '../actions/types';
 
 const initialState = {
@@ -35,23 +36,6 @@ export default function(state = initialState, action) {
         isAuthenticated: true,
         loading: false
       }
-    case REGISTER_FAIL:
-      localStorage.removeItem('token');
-      return {
-        // Whatever is currently in state, since its immutable
-        ...state,
-        token: null,
-        isAuthenticated: false,
-        loading: false
-      }
-    case AUTH_ERROR:
-      localStorage.removeItem('token');
-      return {
-        ...state,
-        token: null,
-        isAuthenticated: false,
-        loading: false
-      }
     case LOGIN_SUCCESS:
       localStorage.setItem('token', payload.token)
       return {
@@ -62,14 +46,10 @@ export default function(state = initialState, action) {
         loading: false
       }
     case LOGIN_FAIL:
-      localStorage.removeItem('token');
-      return {
-        ...state,
-        token: null,
-        isAuthenticated: false,
-        loading: false
-      }
+    case AUTH_ERROR:
+    case REGISTER_FAIL:
     case LOGOUT:
+    case ACCOUNT_DELETED:
     localStorage.removeItem('token');
     return {
       ...state,
