@@ -39,11 +39,11 @@ const EditProfile = ({ profile: { profile, loading }, createProfile, getCurrentP
     instagram
   } = formData 
 
+  console.log(formData)
+
 
   useEffect(() => {
     getCurrentProfile();
-
-    console.log(profile)
     
 
     setFormData({
@@ -60,8 +60,9 @@ const EditProfile = ({ profile: { profile, loading }, createProfile, getCurrentP
       youtube: loading || !profile.social.youtube ? '' : profile.social.youtube,
       instagram: loading || !profile.social.instagram ? '' : profile.social.instagram,      
     });
+    
     // When loading is true, thats when this will run
-  }, [loading, getCurrentProfile, profile]);
+  }, [loading, getCurrentProfile]);
 
   const onChange = e => setFormData({ ...formData, [e.target.name]: e.target.value })
 
